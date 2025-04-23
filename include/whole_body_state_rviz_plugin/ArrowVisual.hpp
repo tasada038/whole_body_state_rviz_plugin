@@ -1,53 +1,57 @@
 ///////////////////////////////////////////////////////////////////////////////
 // BSD 3-Clause License
 //
-// Copyright (C) 2020, University of Edinburgh, Istituto Italiano di Tecnologia
+// Copyright (C) 2020-2021, University of Edinburgh, Istituto Italiano di Tecnologia
 // Copyright note valid unless otherwise stated in individual files.
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef WHOLE_BODY_STATE_RVIZ_PLUGIN_LINE_VISUAL_H
-#define WHOLE_BODY_STATE_RVIZ_PLUGIN_LINE_VISUAL_H
+#ifndef WHOLE_BODY_STATE_RVIZ_PLUGIN_ARROW_VISUAL_HPP
+#define WHOLE_BODY_STATE_RVIZ_PLUGIN_ARROW_VISUAL_HPP
 
-#include <Eigen/Dense>
-#include <rviz/properties/quaternion_property.h>
+#include <OgreSceneManager.h>
+#include <OgreSceneNode.h>
+#include <OgreVector3.h>
+#include <OgreQuaternion.h>
+#include <rviz_common/properties/quaternion_property.hpp>
 
-namespace Ogre {
-class Vector3;
-class Quaternion;
-}  // namespace Ogre
+// namespace Ogre {
+//   class Vector3;
+//   class Quaternion;
+//   class SceneManager;
+//   class SceneNode;
+//   }
 
-namespace rviz {
+namespace rviz_rendering {
 class Arrow;
 }
 
 namespace whole_body_state_rviz_plugin {
 
 /**
- * @class LineVisual
- * @brief Visualizes 3d line
- * Each instance of LineVisual represents the visualization of
- * a single arrow data. Currently it just shows an line with
- * the initial and final points
+ * @class ArrowVisual
+ * @brief Visualizes 3d arrow
+ * Each instance of ArrowVisual represents the visualization of a single arrow
+ * data. Currently it just shows an arrow with a given direction and magnitude.
  */
-class LineVisual {
+class ArrowVisual {
  public:
   /**
    * @brief Constructor that creates the visual stuff and puts it into the scene
    * @param scene_manager  Manager the organization and rendering of the scene
-   * @param parent_node  Represent the arrow as node in the scene
+   * @param parent_node    Represent the arrow as node in the scene
    */
-  LineVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode *parent_node);
+  ArrowVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode *parent_node);
 
   /** @brief Destructor that removes the visual stuff from the scene */
-  ~LineVisual();
+  ~ArrowVisual();
 
   /**
-   * @brief Configure the visual to show the line from their points
-   * @param initial_point  Initial point of the line
-   * @param final_point    Final point of the line
+   * @brief Configure the visual to show the arrow
+   * @param position     Arrow position
+   * @param orientation  Arrow orientation
    */
-  void setArrow(const Ogre::Vector3 &initial_point, const Ogre::Vector3 &final_point);
+  void setArrow(const Ogre::Vector3 &position, const Ogre::Quaternion &orientation);
 
   /**
    * @brief Set the position of the coordinate frame
@@ -57,7 +61,7 @@ class LineVisual {
 
   /**
    * @brief Set the orientation of the coordinate frame
-   * @param orientation  Frame orientation
+   * @param orientation Frame orientation
    */
   void setFrameOrientation(const Ogre::Quaternion &orientation);
 
@@ -72,15 +76,16 @@ class LineVisual {
 
   /**
    * @brief Set the parameters for this arrow
+   * @param shaft_length    Length of the arrow's shaft
    * @param shaft_diameter  Diameter of the arrow's shaft
    * @param head_length     Length of the arrow's head
    * @param head_diameter   Diameter of the arrow's head
    */
-  void setProperties(float shaft_diameter, float head_length = 0., float head_diameter = 0.);
+  void setProperties(float shaft_length, float shaft_diameter, float head_length, float head_diameter);
 
  private:
   /** @brief The object implementing the arrow */
-  rviz::Arrow *arrow_;
+  rviz_rendering::Arrow *arrow_;
 
   /** @brief A SceneNode whose pose is set to match the coordinate frame */
   Ogre::SceneNode *frame_node_;
@@ -89,11 +94,8 @@ class LineVisual {
    * destroy the ``frame_node_``.
    */
   Ogre::SceneManager *scene_manager_;
-
-  /** @brief Distance of the line */
-  float distance_;
 };
 
 }  // namespace whole_body_state_rviz_plugin
 
-#endif  // WHOLE_BODY_STATE_RVIZ_PLUGIN_LINE_VISUAL_H
+#endif  // WHOLE_BODY_STATE_RVIZ_PLUGIN_ARROW_VISUAL_HPP

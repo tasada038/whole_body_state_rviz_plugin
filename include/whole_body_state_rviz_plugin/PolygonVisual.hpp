@@ -6,17 +6,22 @@
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef WHOLE_BODY_STATE_RVIZ_PLUGIN_POLYGON_VISUAL_H
-#define WHOLE_BODY_STATE_RVIZ_PLUGIN_POLYGON_VISUAL_H
+#ifndef WHOLE_BODY_STATE_RVIZ_PLUGIN_POLYGON_VISUAL_HPP
+#define WHOLE_BODY_STATE_RVIZ_PLUGIN_POLYGON_VISUAL_HPP
 
-#include "whole_body_state_rviz_plugin/LineVisual.h"
-#include <rviz/ogre_helpers/mesh_shape.h>
-#include <rviz/properties/quaternion_property.h>
+#include <OgreSceneManager.h>
+#include <OgreSceneNode.h>
+#include <OgreVector3.h>
+#include <OgreQuaternion.h>
+#include "whole_body_state_rviz_plugin/LineVisual.hpp"
+#include <ogre_helpers/mesh_shape.hpp>
+#include <boost/shared_ptr.hpp>
+#include <rviz_common/properties/quaternion_property.hpp>
 
-namespace Ogre {
-class Vector3;
-class Quaternion;
-}  // namespace Ogre
+// namespace Ogre {
+// class Vector3;
+// class Quaternion;
+// }
 
 namespace whole_body_state_rviz_plugin {
 
@@ -90,7 +95,7 @@ class PolygonVisual {
 
  private:
   /** @brief The object implementing the polygon mesh */
-  boost::shared_ptr<rviz::MeshShape> mesh_;
+  boost::shared_ptr<rviz_rendering::MeshShape> mesh_;
 
   /** @brief The object implementing the lines */
   std::vector<boost::shared_ptr<whole_body_state_rviz_plugin::LineVisual>> line_;
@@ -106,4 +111,4 @@ class PolygonVisual {
 
 }  // namespace whole_body_state_rviz_plugin
 
-#endif  // WHOLE_BODY_STATE_RVIZ_PLUGIN_POLYGON_VISUAL_H
+#endif  // WHOLE_BODY_STATE_RVIZ_PLUGIN_POLYGON_VISUAL_HPP

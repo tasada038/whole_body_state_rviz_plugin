@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <pinocchio/algorithm/center-of-mass.hpp>
 #include <pinocchio/parsers/urdf.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 using namespace rviz;
 
@@ -326,7 +327,7 @@ void WholeBodyStateDisplay::loadRobotModel() {
     std::string error_msg = "Failed to instantiate model: ";
     error_msg += e.what();
     setStatus(StatusProperty::Error, "Pinocchio-URDFParser", QString::fromStdString(error_msg));
-    ROS_ERROR_STREAM(error_msg);  // This message is potentially quite detailed.
+    RCLCPP_ERROR_STREAM(error_msg);  // This message is potentially quite detailed.
     return;
   }
   data_ = pinocchio::Data(model_);
@@ -603,7 +604,7 @@ void WholeBodyStateDisplay::updateFrictionConeOrigin() {
   context_->queueRender();
 }
 
-void WholeBodyStateDisplay::processMessage(const whole_body_state_msgs::WholeBodyState::ConstPtr &msg) {
+void WholeBodyStateDisplay::processMessage(const whole_body_state_msgs::msg::WholeBodyState::ConstPtr &msg) {
   msg_ = msg;
   has_new_msg_ = true;
 }
@@ -618,7 +619,7 @@ void WholeBodyStateDisplay::processWholeBodyState() {
   Ogre::Quaternion orientation;
   Ogre::Vector3 position;
   if (!context_->getFrameManager()->getTransform(msg_->header.frame_id, msg_->header.stamp, position, orientation)) {
-    ROS_DEBUG("Error transforming from frame '%s' to frame '%s'", msg_->header.frame_id.c_str(),
+    RCLCPP_DEBUG("Error transforming from frame '%s' to frame '%s'", msg_->header.frame_id.c_str(),
               qPrintable(fixed_frame_));
     return;
   }
@@ -663,7 +664,7 @@ void WholeBodyStateDisplay::processWholeBodyState() {
   Eigen::Vector3d zmp_pos = Eigen::Vector3d::Zero();
   Eigen::Vector3d total_force = Eigen::Vector3d::Zero();
   for (size_t i = 0; i < num_contacts; ++i) {
-    const whole_body_state_msgs::ContactState &contact = msg_->contacts[i];
+    const whole_body_state_msgs::msg::ContactState &contact = msg_->contacts[i];
     std::string name = contact.name;
 
     // Getting the contact position and orientation

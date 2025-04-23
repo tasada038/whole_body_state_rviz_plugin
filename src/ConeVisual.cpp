@@ -1,18 +1,14 @@
-///////////////////////////////////////////////////////////////////////////////
 // BSD 3-Clause License
 //
 // Copyright (C) 2021, University of Edinburgh
 // Copyright note valid unless otherwise stated in individual files.
 // All rights reserved.
-///////////////////////////////////////////////////////////////////////////////
 
-#include <OgreSceneManager.h>
-#include <OgreSceneNode.h>
-#include <OgreVector3.h>
+#include <rclcpp/rclcpp.hpp>
+#include <rviz_common/properties/float_property.hpp>
+#include <rviz_rendering/objects/shape.hpp>
+#include <whole_body_state_rviz_plugin/ConeVisual.hpp>
 
-#include <ros/console.h>
-#include <rviz/ogre_helpers/shape.h>
-#include <whole_body_state_rviz_plugin/ConeVisual.h>
 
 namespace whole_body_state_rviz_plugin {
 
@@ -26,13 +22,13 @@ ConeVisual::ConeVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode *paren
   // relative to the RViz fixed frame.
   frame_node_ = parent_node->createChildSceneNode();
 
-  // We create the arrow object within the frame node so that we can set its
+  // We create the cone object within the frame node so that we can set its
   // position and direction relative to its header frame.
-  cone_ = new rviz::Shape(rviz::Shape::Cone, scene_manager_, frame_node_);
+  cone_ = new rviz_rendering::Shape(rviz_rendering::Shape::Cone, scene_manager_, frame_node_);
 }
 
 ConeVisual::~ConeVisual() {
-  // Delete the arrow to make it disappear.
+  // Delete the cone to make it disappear.
   delete cone_;
 
   // Destroy the frame node since we don't need it anymore.
@@ -52,15 +48,15 @@ void ConeVisual::setColor(float r, float g, float b, float a) { cone_->setColor(
 
 void ConeVisual::setProperties(float width, float length) {
   if (!std::isfinite(width)) {
-    ROS_WARN_STREAM("Cone length is not finite: " << width);
+    RCLCPP_WARN(rclcpp::get_logger("cone_visual"), "Cone width is not finite: %f", width);
     return;
   }
   if (!std::isfinite(length)) {
-    ROS_WARN_STREAM("Cone length is not finite: " << length);
+    RCLCPP_WARN(rclcpp::get_logger("cone_visual"), "Cone length is not finite: %f", length);
     return;
   }
   cone_->setScale(Ogre::Vector3(width, length, width));
   cone_->setOffset(Ogre::Vector3(0., -0.5, 0.));
 }
 
-}  // namespace whole_body_state_rviz_plugin
+}

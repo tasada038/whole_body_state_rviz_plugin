@@ -6,43 +6,52 @@
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef WHOLE_BODY_STATE_RVIZ_PLUGIN_POINT_VISUAL_H
-#define WHOLE_BODY_STATE_RVIZ_PLUGIN_POINT_VISUAL_H
+#ifndef WHOLE_BODY_STATE_RVIZ_PLUGIN_LINE_VISUAL_HPP
+#define WHOLE_BODY_STATE_RVIZ_PLUGIN_LINE_VISUAL_HPP
 
-namespace Ogre {
-class Vector3;
-class Quaternion;
-}  // namespace Ogre
+#include <Eigen/Dense>
+#include <OgreSceneManager.h>
+#include <OgreSceneNode.h>
+#include <OgreVector3.h>
+#include <OgreQuaternion.h>
+#include <rviz_common/properties/quaternion_property.hpp>
 
-namespace rviz {
-class Shape;
+// namespace Ogre {
+// class Vector3;
+// class Quaternion;
+// }
+
+namespace rviz_rendering {
+class Arrow;
 }
 
 namespace whole_body_state_rviz_plugin {
 
 /**
- * @class PointVisual
- * @brief Visualizes 3d point
- * Each instance of PointVisual represents the visualization of a single
- * Ogre::Vector3 data. Currently it just shows a sphere in the point position
+ * @class LineVisual
+ * @brief Visualizes 3d line
+ * Each instance of LineVisual represents the visualization of
+ * a single arrow data. Currently it just shows an line with
+ * the initial and final points
  */
-class PointVisual {
+class LineVisual {
  public:
   /**
    * @brief Constructor that creates the visual stuff and puts it into the scene
    * @param scene_manager  Manager the organization and rendering of the scene
-   * @param parent_node    Represent the point as node in the scene
+   * @param parent_node  Represent the arrow as node in the scene
    */
-  PointVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode *parent_node);
+  LineVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode *parent_node);
 
   /** @brief Destructor that removes the visual stuff from the scene */
-  ~PointVisual();
+  ~LineVisual();
 
   /**
-   * @brief Configure the visual to show the point
-   * @param point  Point position
+   * @brief Configure the visual to show the line from their points
+   * @param initial_point  Initial point of the line
+   * @param final_point    Final point of the line
    */
-  void setPoint(const Ogre::Vector3 &point);
+  void setArrow(const Ogre::Vector3 &initial_point, const Ogre::Vector3 &final_point);
 
   /**
    * @brief Set the position of the coordinate frame
@@ -66,14 +75,16 @@ class PointVisual {
   void setColor(float r, float g, float b, float a);
 
   /**
-   * @brief Set the radius of the point
-   * @param r  Radius value
+   * @brief Set the parameters for this arrow
+   * @param shaft_diameter  Diameter of the arrow's shaft
+   * @param head_length     Length of the arrow's head
+   * @param head_diameter   Diameter of the arrow's head
    */
-  void setRadius(float r);
+  void setProperties(float shaft_diameter, float head_length = 0., float head_diameter = 0.);
 
  private:
-  /** @brief The object implementing the point circle */
-  rviz::Shape *point_;
+  /** @brief The object implementing the arrow */
+  rviz_rendering::Arrow *arrow_;
 
   /** @brief A SceneNode whose pose is set to match the coordinate frame */
   Ogre::SceneNode *frame_node_;
@@ -83,10 +94,10 @@ class PointVisual {
    */
   Ogre::SceneManager *scene_manager_;
 
-  /** @brief Radius value */
-  float radius_;
+  /** @brief Distance of the line */
+  float distance_;
 };
 
 }  // namespace whole_body_state_rviz_plugin
 
-#endif  // WHOLE_BODY_STATE_RVIZ_PLUGIN_POINT_VISUAL_H
+#endif  // WHOLE_BODY_STATE_RVIZ_PLUGIN_LINE_VISUAL_HPP

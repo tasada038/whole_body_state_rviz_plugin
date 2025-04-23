@@ -6,12 +6,8 @@
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <OgreSceneManager.h>
-#include <OgreSceneNode.h>
-#include <OgreVector3.h>
-
-#include "whole_body_state_rviz_plugin/LineVisual.h"
-#include <rviz/ogre_helpers/arrow.h>
+#include "whole_body_state_rviz_plugin/LineVisual.hpp"
+#include <rviz_rendering/objects/arrow.hpp>
 
 namespace whole_body_state_rviz_plugin {
 
@@ -27,7 +23,7 @@ LineVisual::LineVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode *paren
 
   // We create the arrow object within the frame node so that we can set its
   // position and direction relative to its header frame.
-  arrow_ = new rviz::Arrow(scene_manager_, frame_node_);
+  arrow_ = new rviz_rendering::Arrow(scene_manager_, frame_node_);
 }
 
 LineVisual::~LineVisual() {

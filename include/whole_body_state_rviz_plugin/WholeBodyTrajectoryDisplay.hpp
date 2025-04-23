@@ -9,45 +9,44 @@
 #ifndef WHOLE_BODY_STATE_RVIZ_PLUGIN_WHOLE_BODY_TRAJECTORY_DISPLAY_H
 #define WHOLE_BODY_STATE_RVIZ_PLUGIN_WHOLE_BODY_TRAJECTORY_DISPLAY_H
 
-#include "whole_body_state_rviz_plugin/ArrowVisual.h"
-#include "whole_body_state_rviz_plugin/PointVisual.h"
+#include "whole_body_state_rviz_plugin/ArrowVisual.hpp"
+#include "whole_body_state_rviz_plugin/PointVisual.hpp"
 #include <pinocchio/multibody/data.hpp>
 #include <pinocchio/multibody/model.hpp>
-#include <rviz/message_filter_display.h>
-#include <rviz/ogre_helpers/axes.h>
-#include <rviz/ogre_helpers/billboard_line.h>
-#include <rviz/properties/color_property.h>
-#include <rviz/properties/enum_property.h>
-#include <rviz/properties/float_property.h>
-#include <rviz/properties/int_property.h>
-#include <rviz/robot/robot.h>
-#include <whole_body_state_msgs/WholeBodyTrajectory.h>
+#include <rviz_common/message_filter_display.hpp>
 
-namespace Ogre {
-class ManualObject;
-}
+#include <rviz_common/properties/color_property.hpp>
+#include <rviz_common/properties/enum_property.hpp>
+#include <rviz_common/properties/float_property.hpp>
+#include <rviz_common/properties/int_property.hpp>
+#include <rviz_common/properties/string_property.hpp>
+#include <rviz_common/properties/bool_property.hpp>
+#include <rviz_common/properties/status_property.hpp>
+#include <rviz_common/properties/property.hpp>
 
-namespace rviz {
+#include <rviz_default_plugins/robot/robot.hpp>
+#include <rviz_rendering/objects/axes.hpp>
+#include <rviz_rendering/objects/billboard_line.hpp>
+#include "whole_body_state_msgs/msg/whole_body_trajectory.hpp"
 
-class ColorProperty;
-class FloatProperty;
-class IntProperty;
-class EnumProperty;
-class BillboardLine;
-class VectorProperty;
-class Axes;
+#include <memory>
 
-}  // namespace rviz
+#include <rclcpp/rclcpp.hpp>
 
 namespace whole_body_state_rviz_plugin {
-
+using rviz_common::properties::BoolProperty;
+using rviz_common::properties::ColorProperty;
+using rviz_common::properties::FloatProperty;
+using rviz_common::properties::StringProperty;
+using rviz_common::properties::EnumProperty;
+using rviz_common::properties::StatusProperty;
 /**
  * @class WholeBodyTrajectoryDisplay
  * @brief Displays a whole_body_state_msgs::WholeBodyTrajectory message
  */
-class WholeBodyTrajectoryDisplay : public rviz::MessageFilterDisplay<whole_body_state_msgs::WholeBodyTrajectory> {
+class WholeBodyTrajectoryDisplay : public rviz_common::MessageFilterDisplay<whole_body_state_msgs::msg::WholeBodyTrajectory> {
   Q_OBJECT
- public:
+public:
   /** @brief Constructor function */
   WholeBodyTrajectoryDisplay();
 
@@ -72,15 +71,15 @@ class WholeBodyTrajectoryDisplay : public rviz::MessageFilterDisplay<whole_body_
   /**
    * @brief Function to handle an incoming ROS message
    * This is our callback to handle an incoming message
-   * @param const whole_body_state_msgs::WholeBodyTrajectory::ConstPtr&
+   * @param const whole_body_state_msgs::WholeBodyTrajectory::ConstSharedPtr&
    * Whole-body trajectory msg
    */
-  void processMessage(const whole_body_state_msgs::WholeBodyTrajectory::ConstPtr &msg) override;
+  void processMessage(whole_body_state_msgs::msg::WholeBodyTrajectory::ConstSharedPtr msg) override;
 
   /** @brief render callback */
   void update(float wall_dt, float ros_dt) override;
 
- private Q_SLOTS:
+private Q_SLOTS:
   /**@{*/
   /** Helper functions to apply color and alpha to all visuals.
    * Set the current color and alpha values for each visual */
@@ -101,7 +100,7 @@ class WholeBodyTrajectoryDisplay : public rviz::MessageFilterDisplay<whole_body_
   void pushBackContactAxes(const Ogre::Vector3 &axes_position, const Ogre::Quaternion &axes_orientation);
   /**@}*/
 
- private:
+private:
   /**@{*/
   /** Process the trajectories */
   void processTargetPosture();
@@ -119,58 +118,61 @@ class WholeBodyTrajectoryDisplay : public rviz::MessageFilterDisplay<whole_body_
   void destroyObjects();
 
   /** @brief Whole-body trajectory message */
-  whole_body_state_msgs::WholeBodyTrajectory::ConstPtr msg_;
+  whole_body_state_msgs::msg::WholeBodyTrajectory::ConstSharedPtr msg_;
+
+  /** @brief ROS node for parameter access */
+  rclcpp::Node::SharedPtr ros_node_;
 
   bool has_new_msg_;  ///< Callback sets this to tell our update function
                       ///< it needs to update the model
 
   /**@{*/
   /** Properties to show on side panel */
-  rviz::Property *target_category_;
-  rviz::Property *com_category_;
-  rviz::Property *contact_category_;
+  Property *target_category_;
+  Property *com_category_;
+  Property *contact_category_;
   /**@}*/
 
   /**@{*/
   /** Object for visualization of the data */
-  boost::shared_ptr<rviz::Robot> robot_;
-  boost::shared_ptr<Ogre::ManualObject> com_manual_object_;
-  boost::shared_ptr<rviz::BillboardLine> com_billboard_line_;
-  std::vector<boost::shared_ptr<PointVisual>> com_points_;
-  std::vector<boost::shared_ptr<rviz::Axes>> com_axes_;
-  std::vector<boost::shared_ptr<Ogre::ManualObject>> contact_manual_object_;
-  std::vector<boost::shared_ptr<rviz::BillboardLine>> contact_billboard_line_;
-  std::vector<std::vector<boost::shared_ptr<PointVisual>>> contact_points_;
-  std::vector<boost::shared_ptr<rviz::Axes>> contact_axes_;
-  std::vector<boost::shared_ptr<ArrowVisual>> force_visual_;
+  std::shared_ptr<rviz_default_plugins::robot::Robot> robot_;
+  std::shared_ptr<Ogre::ManualObject> com_manual_object_;
+  std::shared_ptr<rviz_rendering::BillboardLine> com_billboard_line_;
+  std::vector<std::shared_ptr<PointVisual>> com_points_;
+  std::vector<std::shared_ptr<rviz_rendering::Axes>> com_axes_;
+  std::vector<std::shared_ptr<Ogre::ManualObject>> contact_manual_object_;
+  std::vector<std::shared_ptr<rviz_rendering::BillboardLine>> contact_billboard_line_;
+  std::vector<std::vector<std::shared_ptr<PointVisual>>> contact_points_;
+  std::vector<std::shared_ptr<rviz_rendering::Axes>> contact_axes_;
+  std::vector<std::shared_ptr<ArrowVisual>> force_visual_;
   /**@}*/
 
   /**@{*/
   /** Property objects for user-editable properties */
-  rviz::BoolProperty *target_enable_property_;
-  rviz::StringProperty *robot_description_property_;
-  rviz::Property *robot_visual_enabled_property_;
-  rviz::Property *robot_collision_enabled_property_;
-  rviz::FloatProperty *robot_alpha_property_;
-  rviz::BoolProperty *force_enable_property_;
-  rviz::ColorProperty *force_color_property_;
-  rviz::FloatProperty *force_alpha_property_;
-  rviz::FloatProperty *force_head_radius_property_;
-  rviz::FloatProperty *force_head_length_property_;
-  rviz::FloatProperty *force_shaft_radius_property_;
-  rviz::FloatProperty *force_shaft_length_property_;
-  rviz::BoolProperty *com_enable_property_;
-  rviz::EnumProperty *com_style_property_;
-  rviz::ColorProperty *com_color_property_;
-  rviz::FloatProperty *com_alpha_property_;
-  rviz::FloatProperty *com_line_width_property_;
-  rviz::FloatProperty *com_scale_property_;
-  rviz::BoolProperty *contact_enable_property_;
-  rviz::EnumProperty *contact_style_property_;
-  rviz::ColorProperty *contact_color_property_;
-  rviz::FloatProperty *contact_alpha_property_;
-  rviz::FloatProperty *contact_line_width_property_;
-  rviz::FloatProperty *contact_scale_property_;
+  BoolProperty *target_enable_property_;
+  StringProperty *robot_description_property_;
+  Property *robot_visual_enabled_property_;
+  Property *robot_collision_enabled_property_;
+  FloatProperty *robot_alpha_property_;
+  BoolProperty *force_enable_property_;
+  ColorProperty *force_color_property_;
+  FloatProperty *force_alpha_property_;
+  FloatProperty *force_head_radius_property_;
+  FloatProperty *force_head_length_property_;
+  FloatProperty *force_shaft_radius_property_;
+  FloatProperty *force_shaft_length_property_;
+  BoolProperty *com_enable_property_;
+  EnumProperty *com_style_property_;
+  ColorProperty *com_color_property_;
+  FloatProperty *com_alpha_property_;
+  FloatProperty *com_line_width_property_;
+  FloatProperty *com_scale_property_;
+  BoolProperty *contact_enable_property_;
+  EnumProperty *contact_style_property_;
+  ColorProperty *contact_color_property_;
+  FloatProperty *contact_alpha_property_;
+  FloatProperty *contact_line_width_property_;
+  FloatProperty *contact_scale_property_;
   /**@}*/
 
   /**@{*/

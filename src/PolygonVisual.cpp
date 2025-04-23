@@ -10,8 +10,9 @@
 #include <OgreSceneNode.h>
 #include <OgreVector3.h>
 
-#include "whole_body_state_rviz_plugin/PolygonVisual.h"
-#include <rviz/ogre_helpers/line.h>
+#include "whole_body_state_rviz_plugin/PolygonVisual.hpp"
+#include <ogre_helpers/mesh_shape.hpp>
+#include <rviz_rendering/objects/line.hpp>
 
 namespace whole_body_state_rviz_plugin {
 
@@ -26,7 +27,7 @@ PolygonVisual::PolygonVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode 
   frame_node_ = parent_node->createChildSceneNode();
 
   // Initialization of the mesh
-  mesh_.reset(new rviz::MeshShape(scene_manager, parent_node));
+  mesh_.reset(new rviz_rendering::MeshShape(scene_manager, parent_node));
 }
 
 PolygonVisual::~PolygonVisual() {

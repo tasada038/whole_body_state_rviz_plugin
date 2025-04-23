@@ -1,108 +1,107 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.1)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
 project(whole_body_state_rviz_plugin)
 
-# Set up project properties
-SET(PROJECT_NAME whole_body_state_rviz_plugin)
-SET(PROJECT_DESCRIPTION "Whole-body state rviz plugin")
+# Default to C99
+if(NOT CMAKE_C_STANDARD)
+  set(CMAKE_C_STANDARD 99)
+endif()
 
-# Print initial message (STATUS to avoid triggering warnings)
-MESSAGE(STATUS "${PROJECT_DESCRIPTION}, version ${PROJECT_VERSION}")
-MESSAGE(STATUS "Copyright (C) 2020-2023 Heriot-Watt Unversity, University of Edinburgh")
-MESSAGE(STATUS "                        Istituto Italiano di Tecnologia, University of Oxford")
-MESSAGE(STATUS "All rights reserved.")
-MESSAGE(STATUS "Released under the BSD 3-Clause License.")
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 
-# Set a default build type to 'Release' if none was specified
-IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  MESSAGE(STATUS "Setting build type to 'Release' as none was specified.")
-  SET(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
-  # Set the possible values of build type for cmake-gui
-  SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-ENDIF()
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
-# C++14 (Kinetic+)
-IF(CMAKE_CXX_STANDARD GREATER 14)
-  MESSAGE(WARNING "OGRE cannot be built with C++17 or higher. Force setting C++14.")
-  SET(CMAKE_CXX_STANDARD 14)
-ENDIF()
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rviz_common REQUIRED)
+find_package(rviz_default_plugins REQUIRED)
+find_package(rviz_rendering REQUIRED)
+find_package(rviz_ogre_vendor REQUIRED)
+find_package(pluginlib REQUIRED)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets)
+find_package(Boost REQUIRED COMPONENTS system)
+find_package(whole_body_state_msgs REQUIRED)
+find_package(pinocchio REQUIRED)
 
-FIND_PACKAGE(catkin REQUIRED COMPONENTS
-  whole_body_state_msgs
-  roscpp
-  rviz)
+include_directories(src ${OGRE_INCLUDE_DIRS} ${OGRE_INCLUDE_DIRS}/Paging)
 
-# Ensure version of whole_body_state_msgs is at least 1.0.0
-IF(NOT ${whole_body_state_msgs_VERSION} VERSION_GREATER "0.9.99")
-  MESSAGE(FATAL_ERROR "whole_body_state_msgs version 1.0.0 or greater required.")
-ENDIF()
+set(CMAKE_AUTOMOC ON)
 
-FIND_PACKAGE(Boost REQUIRED COMPONENTS system)
+# Qt5 MOC
+set(MOC_HEADERS
+  include/whole_body_state_rviz_plugin/PointVisual.hpp
+  include/whole_body_state_rviz_plugin/LineVisual.hpp
+  include/whole_body_state_rviz_plugin/ArrowVisual.hpp
+  include/whole_body_state_rviz_plugin/PolygonVisual.hpp
+  include/whole_body_state_rviz_plugin/ConeVisual.hpp
+  include/whole_body_state_rviz_plugin/PinocchioLinkUpdater.hpp
+  # include/whole_body_state_rviz_plugin/WholeBodyStateDisplay.h
+  include/whole_body_state_rviz_plugin/WholeBodyTrajectoryDisplay.hpp
+)
 
-FIND_PACKAGE(pinocchio REQUIRED)
+qt5_wrap_cpp(MOC_FILES ${MOC_HEADERS})
 
-IF(rviz_QT_VERSION VERSION_LESS "5")
-  MESSAGE(STATUS "Using Qt4 based on the rviz_QT_VERSION: ${rviz_QT_VERSION}")
-  FIND_PACKAGE(Qt4 ${rviz_QT_VERSION} REQUIRED QtCore QtGui)
-  ## pull in all required include dirs, define QT_LIBRARIES, etc.
-  INCLUDE(${QT_USE_FILE})
+add_definitions(-DQT_NO_KEYWORDS)
 
-  qt4_wrap_cpp(MOC_FILES
-    include/whole_body_state_rviz_plugin/PointVisual.h
-    include/whole_body_state_rviz_plugin/LineVisual.h
-    include/whole_body_state_rviz_plugin/ArrowVisual.h
-    include/whole_body_state_rviz_plugin/PolygonVisual.h
-    include/whole_body_state_rviz_plugin/ConeVisual.h
-    include/whole_body_state_rviz_plugin/PinocchioLinkUpdater.h
-    include/whole_body_state_rviz_plugin/WholeBodyStateDisplay.h
-    include/whole_body_state_rviz_plugin/WholeBodyTrajectoryDisplay.h
-    OPTIONS -DBOOST_TT_HAS_OPERATOR_HPP_INCLUDED)
-ELSE()
-  MESSAGE(STATUS "Using Qt5 based on the rviz_QT_VERSION: ${rviz_QT_VERSION}")
-  FIND_PACKAGE(Qt5 ${rviz_QT_VERSION} REQUIRED Core Widgets)
-  ## make target_link_libraries(${QT_LIBRARIES}) pull in all required dependencies
-  SET(QT_LIBRARIES Qt5::Widgets)
+# インクルードディレクトリ
+include_directories(
+  include
+  ${Boost_INCLUDE_DIRS}
+)
 
-  qt5_wrap_cpp(MOC_FILES
-    include/whole_body_state_rviz_plugin/PointVisual.h
-    include/whole_body_state_rviz_plugin/LineVisual.h
-    include/whole_body_state_rviz_plugin/ArrowVisual.h
-    include/whole_body_state_rviz_plugin/PolygonVisual.h
-        include/whole_body_state_rviz_plugin/ConeVisual.h
-    include/whole_body_state_rviz_plugin/PinocchioLinkUpdater.h
-    include/whole_body_state_rviz_plugin/WholeBodyStateDisplay.h
-    include/whole_body_state_rviz_plugin/WholeBodyTrajectoryDisplay.h
-    OPTIONS -DBOOST_TT_HAS_OPERATOR_HPP_INCLUDED)
-ENDIF()
-
-ADD_DEFINITIONS(-DQT_NO_KEYWORDS)
-
-
-catkin_package(
-  INCLUDE_DIRS
-  LIBRARIES
-  CATKIN_DEPENDS)
-
-
-INCLUDE_DIRECTORIES(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
-
-SET(SOURCE_FILES
+# ソースファイル
+set(SOURCE_FILES
   src/PointVisual.cpp
   src/LineVisual.cpp
   src/ArrowVisual.cpp
   src/PolygonVisual.cpp
   src/ConeVisual.cpp
   src/PinocchioLinkUpdater.cpp
-  src/WholeBodyStateDisplay.cpp
+  # src/WholeBodyStateDisplay.cpp
   src/WholeBodyTrajectoryDisplay.cpp
-  ${MOC_FILES})
+  ${MOC_FILES}
+)
 
+# ライブラリ作成
+add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
+ament_target_dependencies(${PROJECT_NAME}
+  rclcpp
+  whole_body_state_msgs
+  rviz_common
+  rviz_default_plugins
+  rviz_rendering
+  pluginlib
+  Boost
+)
 
-ADD_LIBRARY(${PROJECT_NAME}  ${SOURCE_FILES})
-TARGET_LINK_LIBRARIES(${PROJECT_NAME}  ${QT_LIBRARIES}
-                                       ${Boost_LIBRARIES}
-                                       ${catkin_LIBRARIES}
-                                       pinocchio::pinocchio)
-#TARGET_COMPILE_OPTIONS(${PROJECT_NAME} PRIVATE -Wno-ignored-attributes)  # Silence Eigen::Tensor warnings
+target_link_libraries(${PROJECT_NAME}
+  Qt5::Widgets
+  pinocchio::pinocchio
+)
 
-INSTALL(FILES plugin_description.xml DESTINATION share/${PROJECT_NAME})
-INSTALL(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
+pluginlib_export_plugin_description_file(rviz_common plugin_description.xml)
+
+# プラグイン記述ファイル
+# install(FILES plugin_description.xml
+#   DESTINATION share/${PROJECT_NAME}
+# )
+
+# ライブラリのインストール
+install(TARGETS ${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION include
+)
+
+# パッケージのエクスポート
+ament_export_dependencies(rclcpp rviz_common rviz_rendering pluginlib Boost pinocchio)
+ament_export_include_directories(include)
+ament_export_libraries(${PROJECT_NAME})
+
+ament_package()

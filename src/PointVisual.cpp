@@ -6,12 +6,9 @@
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <OgreSceneManager.h>
-#include <OgreSceneNode.h>
-#include <OgreVector3.h>
 
-#include <rviz/ogre_helpers/shape.h>
-#include <whole_body_state_rviz_plugin/PointVisual.h>
+#include <rviz_rendering/objects/shape.hpp>
+#include <whole_body_state_rviz_plugin/PointVisual.hpp>
 
 namespace whole_body_state_rviz_plugin {
 
@@ -27,7 +24,7 @@ PointVisual::PointVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode *par
 
   // We create the point object within the frame node so that we can set its
   // position.
-  point_ = new rviz::Shape(rviz::Shape::Sphere, scene_manager_, frame_node_);
+  point_ = new rviz_rendering::Shape(rviz_rendering::Shape::Sphere, scene_manager_, frame_node_);
 }
 
 PointVisual::~PointVisual() {

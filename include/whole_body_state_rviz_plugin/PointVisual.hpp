@@ -1,51 +1,53 @@
 ///////////////////////////////////////////////////////////////////////////////
 // BSD 3-Clause License
 //
-// Copyright (C) 2021, University of Edinburgh
+// Copyright (C) 2020, University of Edinburgh, Istituto Italiano di Tecnologia
 // Copyright note valid unless otherwise stated in individual files.
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef WHOLE_BODY_STATE_RVIZ_PLUGIN_CONE_VISUAL_H
-#define WHOLE_BODY_STATE_RVIZ_PLUGIN_CONE_VISUAL_H
+#ifndef WHOLE_BODY_STATE_RVIZ_PLUGIN_POINT_VISUAL_HPP
+#define WHOLE_BODY_STATE_RVIZ_PLUGIN_POINT_VISUAL_HPP
 
-#include <rviz/properties/quaternion_property.h>
+#include <OgreSceneManager.h>
+#include <OgreSceneNode.h>
+#include <OgreVector3.h>
+#include <OgreQuaternion.h>
 
-namespace Ogre {
-class Vector3;
-class Quaternion;
-}  // namespace Ogre
+// namespace Ogre {
+// class Vector3;
+// class Quaternion;
+// }
 
-namespace rviz {
+namespace rviz_rendering {
 class Shape;
 }
 
 namespace whole_body_state_rviz_plugin {
 
 /**
- * @class ConeVisual
- * @brief Visualizes 3d cone
- * Each instance of ConeVisual represents the visualization of a single cone
- * data. Currently it just shows a cone with a given direction, coefficient and magnitude.
+ * @class PointVisual
+ * @brief Visualizes 3d point
+ * Each instance of PointVisual represents the visualization of a single
+ * Ogre::Vector3 data. Currently it just shows a sphere in the point position
  */
-class ConeVisual {
+class PointVisual {
  public:
   /**
    * @brief Constructor that creates the visual stuff and puts it into the scene
    * @param scene_manager  Manager the organization and rendering of the scene
-   * @param parent_node    Represent the cone as node in the scene
+   * @param parent_node    Represent the point as node in the scene
    */
-  ConeVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode *parent_node);
+  PointVisual(Ogre::SceneManager *scene_manager, Ogre::SceneNode *parent_node);
 
   /** @brief Destructor that removes the visual stuff from the scene */
-  ~ConeVisual();
+  ~PointVisual();
 
   /**
-   * @brief Configure the visual to show the cone
-   * @param position     Cone position
-   * @param orientation  Cone orientation
+   * @brief Configure the visual to show the point
+   * @param point  Point position
    */
-  void setCone(const Ogre::Vector3 &position, const Ogre::Quaternion &orientation);
+  void setPoint(const Ogre::Vector3 &point);
 
   /**
    * @brief Set the position of the coordinate frame
@@ -55,7 +57,7 @@ class ConeVisual {
 
   /**
    * @brief Set the orientation of the coordinate frame
-   * @param orientation Frame orientation
+   * @param orientation  Frame orientation
    */
   void setFrameOrientation(const Ogre::Quaternion &orientation);
 
@@ -69,15 +71,14 @@ class ConeVisual {
   void setColor(float r, float g, float b, float a);
 
   /**
-   * @brief Set the parameters for this cone
-   * @param width    Cone width
-   * @param length  Cone length
+   * @brief Set the radius of the point
+   * @param r  Radius value
    */
-  void setProperties(float width, float length);
+  void setRadius(float r);
 
  private:
-  /** @brief The object implementing the cone */
-  rviz::Shape *cone_;
+  /** @brief The object implementing the point circle */
+  rviz_rendering::Shape *point_;
 
   /** @brief A SceneNode whose pose is set to match the coordinate frame */
   Ogre::SceneNode *frame_node_;
@@ -86,8 +87,11 @@ class ConeVisual {
    * destroy the ``frame_node_``.
    */
   Ogre::SceneManager *scene_manager_;
+
+  /** @brief Radius value */
+  float radius_;
 };
 
 }  // namespace whole_body_state_rviz_plugin
 
-#endif  // WHOLE_BODY_STATE_RVIZ_PLUGIN_CONE_VISUAL_H
+#endif  // WHOLE_BODY_STATE_RVIZ_PLUGIN_POINT_VISUAL_HPP
