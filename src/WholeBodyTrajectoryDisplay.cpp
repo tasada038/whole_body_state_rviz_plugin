@@ -459,397 +459,431 @@ void WholeBodyTrajectoryDisplay::update(float wall_dt, float /*ros_dt*/) {
     has_new_msg_ = false;
   }
 }
+void WholeBodyTrajectoryDisplay::processTargetPosture() {
+  if (target_enable_) {
+    Ogre::Quaternion orientation;
+    Ogre::Vector3 position;
+    // if (!context_->getFrameManager()->getTransform(msg_->header.frame_id, msg_->header.stamp.sec, msg_->header.stamp.nanosec, position, orientation)) {
+    //   RCLCPP_DEBUG(rclcpp::get_logger("whole_body_state_rviz_plugin"), 
+    //               "Error transforming from frame '%s' to frame '%s'", 
+    //               msg_->header.frame_id.c_str(),
+    //               qPrintable(fixed_frame_));
+    //   return;
+    // }
 
-// void WholeBodyTrajectoryDisplay::processTargetPosture() {
-//   if (target_enable_) {
-//     Ogre::Quaternion orientation;
-//     Ogre::Vector3 position;
-//     if (!context_->getFrameManager()->getTransform(msg_->header.frame_id, msg_->header.stamp, position, orientation)) {
-//       // RCLCPP_DEBUG("Error transforming from frame '%s' to frame '%s'", msg_->header.frame_id.c_str(),
-//       //           qPrintable(fixed_frame_));
-//       return;
-//     }
+    const whole_body_state_msgs::msg::WholeBodyState &state = msg_->trajectory.back();
+    Eigen::VectorXd q = Eigen::VectorXd::Zero(model_.nq);
+    q(3) = state.centroidal.base_orientation.x;
+    q(4) = state.centroidal.base_orientation.y;
+    q(5) = state.centroidal.base_orientation.z;
+    q(6) = state.centroidal.base_orientation.w;
+    std::size_t n_joints = state.joints.size();
+    for (std::size_t j = 0; j < n_joints; ++j) {
+      pinocchio::JointIndex jointId = model_.getJointId(state.joints[j].name) - 2;
+      q(jointId + 7) = state.joints[j].position;
+    }
+    pinocchio::centerOfMass(model_, data_, q);
+    q(0) = state.centroidal.com_position.x - data_.com[0](0);
+    q(1) = state.centroidal.com_position.y - data_.com[0](1);
+    q(2) = state.centroidal.com_position.z - data_.com[0](2);
+    robot_->setPosition(position);
+    robot_->setOrientation(orientation);
+    robot_->update(PinocchioLinkUpdater(model_, data_, q, boost::bind(linkUpdaterStatusFunction, _1, _2, _3, this)));
 
-//     const whole_body_state_msgs::msg::WholeBodyState &state = msg_->trajectory.back();
-//     Eigen::VectorXd q = Eigen::VectorXd::Zero(model_.nq);
-//     q(3) = state.centroidal.base_orientation.x;
-//     q(4) = state.centroidal.base_orientation.y;
-//     q(5) = state.centroidal.base_orientation.z;
-//     q(6) = state.centroidal.base_orientation.w;
-//     std::size_t n_joints = state.joints.size();
-//     for (std::size_t j = 0; j < n_joints; ++j) {
-//       pinocchio::JointIndex jointId = model_.getJointId(state.joints[j].name) - 2;
-//       q(jointId + 7) = state.joints[j].position;
-//     }
-//     pinocchio::centerOfMass(model_, data_, q);
-//     q(0) = state.centroidal.com_position.x - data_.com[0](0);
-//     q(1) = state.centroidal.com_position.y - data_.com[0](1);
-//     q(2) = state.centroidal.com_position.z - data_.com[0](2);
-//     robot_->setPosition(position);
-//     robot_->setOrientation(orientation);
-//     robot_->update(PinocchioLinkUpdater(model_, data_, q, boost::bind(linkUpdaterStatusFunction, _1, _2, _3, this)));
+    size_t n_contacts = state.contacts.size();
+    force_visual_.clear();
+    for (size_t i = 0; i < n_contacts; ++i) {
+      const whole_body_state_msgs::msg::ContactState &contact = state.contacts[i];
+      // Getting the contact position
+      Ogre::Vector3 contact_pos(contact.pose.position.x, contact.pose.position.y, contact.pose.position.z);
+      // Getting the force direction
+      Eigen::Vector3d for_ref_dir = -Eigen::Vector3d::UnitZ();
+      Eigen::Vector3d for_dir(contact.wrench.force.x, contact.wrench.force.y, contact.wrench.force.z);
+      if (for_dir.norm() > 0. && std::isfinite(contact_pos.x) && std::isfinite(contact_pos.y) &&
+          std::isfinite(contact_pos.z)) {
+        Eigen::Quaterniond for_q;
+        for_q.setFromTwoVectors(for_ref_dir, for_dir);
+        Ogre::Quaternion contact_for_orientation(for_q.w(), for_q.x(), for_q.y(), for_q.z());
+        // We are keeping a vector of visual pointers. This creates the next
+        // one and stores it in the vector
+        std::shared_ptr<ArrowVisual> arrow;
+        arrow.reset(new ArrowVisual(context_->getSceneManager(), scene_node_));
+        arrow->setArrow(contact_pos, contact_for_orientation);
+        arrow->setFramePosition(position);
+        arrow->setFrameOrientation(orientation);
+        // Setting the arrow color and properties
+        Ogre::ColourValue color = force_color_property_->getOgreColor();
+        color.a = force_alpha_property_->getFloat();
+        arrow->setColor(color.r, color.g, color.b, color.a);
+        const float &shaft_length = force_shaft_length_property_->getFloat() * for_dir.norm() / weight_;
+        const float &shaft_radius = force_shaft_radius_property_->getFloat();
+        const float &head_length = force_head_length_property_->getFloat();
+        const float &head_radius = force_head_radius_property_->getFloat();
+        arrow->setProperties(shaft_length, shaft_radius, head_length, head_radius);
+        // And send it to the end of the vector
+        if (std::isfinite(shaft_length) && std::isfinite(shaft_radius) && std::isfinite(head_length) &&
+            std::isfinite(head_radius)) {
+          force_visual_.push_back(arrow);
+        }
+      }
+    }
+  }
+}
 
-//     size_t n_contacts = state.contacts.size();
-//     force_visual_.clear();
-//     for (size_t i = 0; i < n_contacts; ++i) {
-//       const whole_body_state_msgs::msg::ContactState &contact = state.contacts[i];
-//       // Getting the contact position
-//       Ogre::Vector3 contact_pos(contact.pose.position.x, contact.pose.position.y, contact.pose.position.z);
-//       // Getting the force direction
-//       Eigen::Vector3d for_ref_dir = -Eigen::Vector3d::UnitZ();
-//       Eigen::Vector3d for_dir(contact.wrench.force.x, contact.wrench.force.y, contact.wrench.force.z);
-//       if (for_dir.norm() > 0. && std::isfinite(contact_pos.x) && std::isfinite(contact_pos.y) &&
-//           std::isfinite(contact_pos.z)) {
-//         Eigen::Quaterniond for_q;
-//         for_q.setFromTwoVectors(for_ref_dir, for_dir);
-//         Ogre::Quaternion contact_for_orientation(for_q.w(), for_q.x(), for_q.y(), for_q.z());
-//         // We are keeping a vector of visual pointers. This creates the next
-//         // one and stores it in the vector
-//         boost::shared_ptr<ArrowVisual> arrow;
-//         arrow.reset(new ArrowVisual(context_->getSceneManager(), scene_node_));
-//         arrow->setArrow(contact_pos, contact_for_orientation);
-//         arrow->setFramePosition(position);
-//         arrow->setFrameOrientation(orientation);
-//         // Setting the arrow color and properties
-//         Ogre::ColourValue color = force_color_property_->getOgreColor();
-//         color.a = force_alpha_property_->getFloat();
-//         arrow->setColor(color.r, color.g, color.b, color.a);
-//         const float &shaft_length = force_shaft_length_property_->getFloat() * for_dir.norm() / weight_;
-//         const float &shaft_radius = force_shaft_radius_property_->getFloat();
-//         const float &head_length = force_head_length_property_->getFloat();
-//         const float &head_radius = force_head_radius_property_->getFloat();
-//         arrow->setProperties(shaft_length, shaft_radius, head_length, head_radius);
-//         // And send it to the end of the vector
-//         if (std::isfinite(shaft_length) && std::isfinite(shaft_radius) && std::isfinite(head_length) &&
-//             std::isfinite(head_radius)) {
-//           force_visual_.push_back(arrow);
-//         }
-//       }
-//     }
-//   }
-// }
+void WholeBodyTrajectoryDisplay::processCoMTrajectory() {
+  // Lookup transform into fixed frame
+  if (com_enable_) {
+    Ogre::Vector3 position;
+    Ogre::Quaternion orientation;
+    rclcpp::Time msg_time(msg_->header.stamp);
+    // if (!context_->getFrameManager()->getTransform(msg_->header.frame_id, msg_time, position, orientation)) {
+    //   RCLCPP_DEBUG(rclcpp::get_logger("whole_body_state_rviz_plugin"), 
+    //               "Error transforming from frame '%s' to frame '%s'", 
+    //               msg_->header.frame_id.c_str(),
+    //               qPrintable(fixed_frame_));
+    // }
+    Ogre::Matrix4 transform(orientation);
+    transform.setTrans(position);
 
-// void WholeBodyTrajectoryDisplay::processCoMTrajectory() {
-//   // Lookup transform into fixed frame
-//   if (com_enable_) {
-//     Ogre::Vector3 position;
-//     Ogre::Quaternion orientation;
-//     if (!context_->getFrameManager()->getTransform(msg_->header, position, orientation)) {
-//       // RCLCPP_DEBUG("Error transforming from frame '%s' to frame '%s'", msg_->header.frame_id.c_str(),
-//       //           qPrintable(fixed_frame_));
-//     }
-//     Ogre::Matrix4 transform(orientation);
-//     transform.setTrans(position);
+    // Visualization of the base trajectory
+    // Getting the base trajectory style
+    LineStyle base_style = (LineStyle)com_style_property_->getOptionInt();
 
-//     // Visualization of the base trajectory
-//     // Getting the base trajectory style
-//     LineStyle base_style = (LineStyle)com_style_property_->getOptionInt();
+    // Getting the base trajectory color
+    Ogre::ColourValue base_color = com_color_property_->getOgreColor();
+    base_color.a = com_alpha_property_->getFloat();
 
-//     // Getting the base trajectory color
-//     Ogre::ColourValue base_color = com_color_property_->getOgreColor();
-//     base_color.a = com_alpha_property_->getFloat();
+    // Visualization of the base trajectory
+    std::size_t n_points = msg_->trajectory.size();
+    com_axes_.clear();
+    for (std::size_t i = 0; i < n_points; ++i) {
+      const whole_body_state_msgs::msg::WholeBodyState &state = msg_->trajectory[i];
+      // Obtaining the CoM position and the base orientation
+      Ogre::Vector3 com_position;
+      Ogre::Quaternion base_orientation;
+      com_position.x = state.centroidal.com_position.x;
+      com_position.y = state.centroidal.com_position.y;
+      com_position.z = state.centroidal.com_position.z;
+      base_orientation.x = state.centroidal.base_orientation.x;
+      base_orientation.y = state.centroidal.base_orientation.y;
+      base_orientation.z = state.centroidal.base_orientation.z;
+      base_orientation.w = state.centroidal.base_orientation.w;
+      // sanity checks
+      if (!(std::isfinite(com_position.x) && std::isfinite(com_position.y) && std::isfinite(com_position.z))) {
+        RCLCPP_WARN(rclcpp::get_logger("whole_body_state_rviz_plugin"), "CoM position is not finite, resetting to zero");
+        com_position.x = 0.0;
+        com_position.y = 0.0;
+        com_position.z = 0.0;
+      }
+      if (!(std::isfinite(base_orientation.x) && std::isfinite(base_orientation.y) &&
+            std::isfinite(base_orientation.z) && std::isfinite(base_orientation.w))) {
+        RCLCPP_WARN(rclcpp::get_logger("whole_body_state_rviz_plugin"), "Body orientation is not finite, resetting to [0 0 0 1]");
+        base_orientation.x = 0.;
+        base_orientation.y = 0.;
+        base_orientation.z = 0.;
+        base_orientation.w = 1.;
+      }
 
-//     // Visualization of the base trajectory
-//     std::size_t n_points = msg_->trajectory.size();
-//     com_axes_.clear();
-//     for (std::size_t i = 0; i < n_points; ++i) {
-//       const whole_body_state_msgs::msg::WholeBodyState &state = msg_->trajectory[i];
-//       // Obtaining the CoM position and the base orientation
-//       Ogre::Vector3 com_position;
-//       Ogre::Quaternion base_orientation;
-//       com_position.x = state.centroidal.com_position.x;
-//       com_position.y = state.centroidal.com_position.y;
-//       com_position.z = state.centroidal.com_position.z;
-//       base_orientation.x = state.centroidal.base_orientation.x;
-//       base_orientation.y = state.centroidal.base_orientation.y;
-//       base_orientation.z = state.centroidal.base_orientation.z;
-//       base_orientation.w = state.centroidal.base_orientation.w;
-//       // sanity checks
-//       if (!(std::isfinite(com_position.x) && std::isfinite(com_position.y) && std::isfinite(com_position.z))) {
-//         std::cerr << "CoM position is not finite, resetting to zero" << std::endl;
-//         com_position.x = 0.0;
-//         com_position.y = 0.0;
-//         com_position.z = 0.0;
-//       }
-//       if (!(std::isfinite(base_orientation.x) && std::isfinite(base_orientation.y) &&
-//             std::isfinite(base_orientation.z) && std::isfinite(base_orientation.w))) {
-//         std::cerr << "Body orientation is not finite, resetting to [0 0 0 1]" << std::endl;
-//         base_orientation.x = 0.;
-//         base_orientation.y = 0.;
-//         base_orientation.z = 0.;
-//         base_orientation.w = 1.;
-//       }
+      Ogre::Vector3 point_position = transform * com_position;
+      if (com_axes_enable_) {
+        pushBackCoMAxes(point_position, base_orientation * orientation);
+      }
+      switch (base_style) {
+        case BILLBOARDS: {
+          // Getting the base line width
+          if (i == 0) {
+            float base_line_width = com_line_width_property_->getFloat();
+            com_billboard_line_.reset(new rviz_rendering::BillboardLine(context_->getSceneManager(), scene_node_));
+            com_billboard_line_->setNumLines(1);
+            com_billboard_line_->setMaxPointsPerLine(n_points);
+            com_billboard_line_->setLineWidth(base_line_width);
+          }
+          com_billboard_line_->addPoint(point_position, base_color);
+        } break;
+        case LINES: {
+          if (i == 0) {
+            com_manual_object_.reset(context_->getSceneManager()->createManualObject());
+            com_manual_object_->setDynamic(true);
+            scene_node_->attachObject(com_manual_object_.get());
+            com_manual_object_->estimateVertexCount(n_points);
+            com_manual_object_->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_STRIP);
+          }
+          com_manual_object_->position(point_position.x, point_position.y, point_position.z);
+          com_manual_object_->colour(base_color);
+        } break;
+        case POINTS: {
+          if (i == 0) {
+            com_points_.clear();
+          }
+          float base_line_width = com_line_width_property_->getFloat();
+          // We are keeping a vector of CoM visual pointers. This creates the next
+          // one and stores it in the vector
+          std::shared_ptr<PointVisual> point_visual;
+          point_visual.reset(new PointVisual(context_->getSceneManager(), scene_node_));
+          point_visual->setColor(base_color.r, base_color.g, base_color.b, base_color.a);
+          point_visual->setRadius(base_line_width);
+          point_visual->setPoint(com_position);
+          point_visual->setFramePosition(position);
+          point_visual->setFrameOrientation(orientation);
+          // And send it to the end of the vector
+          com_points_.push_back(point_visual);
+        } break;
+      }
+    }
+    if (base_style == LINES) {
+      com_manual_object_->end();
+    }
+  }
+}
 
-//       Ogre::Vector3 point_position = transform * com_position;
-//       if (com_axes_enable_) {
-//         pushBackCoMAxes(point_position, base_orientation * orientation);
-//       }
-//       switch (base_style) {
-//         case BILLBOARDS: {
-//           // Getting the base line width
-//           if (i == 0) {
-//             float base_line_width = com_line_width_property_->getFloat();
-//             com_billboard_line_.reset(new rviz_rendering::BillboardLine(scene_manager_, scene_node_));
-//             com_billboard_line_->setNumLines(1);
-//             com_billboard_line_->setMaxPointsPerLine(n_points);
-//             com_billboard_line_->setLineWidth(base_line_width);
-//           }
-//           com_billboard_line_->addPoint(point_position, base_color);
-//         } break;
-//         case LINES: {
-//           if (i == 0) {
-//             com_manual_object_.reset(scene_manager_->createManualObject());
-//             com_manual_object_->setDynamic(true);
-//             scene_node_->attachObject(com_manual_object_.get());
-//             com_manual_object_->estimateVertexCount(n_points);
-//             com_manual_object_->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_STRIP);
-//           }
-//           com_manual_object_->position(point_position.x, point_position.y, point_position.z);
-//           com_manual_object_->colour(base_color);
-//         } break;
-//         case POINTS: {
-//           if (i == 0) {
-//             com_points_.clear();
-//           }
-//           float base_line_width = com_line_width_property_->getFloat();
-//           // We are keeping a vector of CoM visual pointers. This creates the next
-//           // one and stores it in the vector
-//           boost::shared_ptr<PointVisual> point_visual;
-//           point_visual.reset(new PointVisual(context_->getSceneManager(), scene_node_));
-//           point_visual->setColor(base_color.r, base_color.g, base_color.b, base_color.a);
-//           point_visual->setRadius(base_line_width);
-//           point_visual->setPoint(com_position);
-//           point_visual->setFramePosition(position);
-//           point_visual->setFrameOrientation(orientation);
-//           // And send it to the end of the vector
-//           com_points_.push_back(point_visual);
-//         } break;
-//       }
-//     }
-//     if (base_style == LINES) {
-//       com_manual_object_->end();
-//     }
-//   }
-// }
+void WholeBodyTrajectoryDisplay::processContactTrajectory() {
+  if (contact_enable_) {
+    // Lookup transform into fixed frame
+    Ogre::Vector3 position;
+    Ogre::Quaternion orientation;
+    rclcpp::Time msg_time(msg_->header.stamp);
+    // if (!context_->getFrameManager()->getTransform(msg_->header.frame_id, msg_time, position, orientation)) {
+    //   RCLCPP_DEBUG(rclcpp::get_logger("whole_body_state_rviz_plugin"), 
+    //               "Error transforming from frame '%s' to frame '%s'", 
+    //               msg_->header.frame_id.c_str(),
+    //               qPrintable(fixed_frame_));
+    // }
+    Ogre::Matrix4 transform(orientation);
+    transform.setTrans(position);
 
-// void WholeBodyTrajectoryDisplay::processContactTrajectory() {
-//   if (contact_enable_) {
-//     // Lookup transform into fixed frame
-//     Ogre::Vector3 position;
-//     Ogre::Quaternion orientation;
-//     if (!context_->getFrameManager()->getTransform(msg_->header, position, orientation)) {
-//       // RCLCPP_DEBUG("Error transforming from frame '%s' to frame '%s'", msg_->header.frame_id.c_str(),
-//       //           qPrintable(fixed_frame_));
-//     }
-//     Ogre::Matrix4 transform(orientation);
-//     transform.setTrans(position);
+    // Visualization of the end-effector trajectory
+    // Getting the end-effector trajectory style
+    uint32_t n_points = msg_->trajectory.size();
+    LineStyle contact_style = (LineStyle)contact_style_property_->getOptionInt();
 
-//     // Visualization of the end-effector trajectory
-//     // Getting the end-effector trajectory style
-//     uint32_t n_points = msg_->trajectory.size();
-//     LineStyle contact_style = (LineStyle)contact_style_property_->getOptionInt();
+    // Getting the end-effector trajectory color
+    Ogre::ColourValue contact_color = contact_color_property_->getOgreColor();
+    contact_color.a = contact_alpha_property_->getFloat();
 
-//     // Getting the end-effector trajectory color
-//     Ogre::ColourValue contact_color = contact_color_property_->getOgreColor();
-//     contact_color.a = contact_alpha_property_->getFloat();
+    // Getting the number of contact trajectories
+    std::size_t n_traj = 0;
+    std::map<std::string, std::size_t> contact_traj_id;
+    for (std::size_t i = 0; i < n_points; ++i) {
+      const whole_body_state_msgs::msg::WholeBodyState &state = msg_->trajectory[i];
+      std::size_t n_contacts = state.contacts.size();
+      for (std::size_t k = 0; k < n_contacts; ++k) {
+        whole_body_state_msgs::msg::ContactState contact = msg_->trajectory[i].contacts[k];
+        if (contact_traj_id.find(contact.name) == contact_traj_id.end()) {  // a new swing trajectory
+          contact_traj_id[contact.name] = n_traj;
+          // Incrementing the counter (id) of swing trajectories
+          ++n_traj;
+        }
+      }
+    }
 
-//     // Getting the number of contact trajectories
-//     std::size_t n_traj = 0;
-//     std::map<std::string, std::size_t> contact_traj_id;
-//     for (std::size_t i = 0; i < n_points; ++i) {
-//       const whole_body_state_msgs::msg::WholeBodyState &state = msg_->trajectory[i];
-//       std::size_t n_contacts = state.contacts.size();
-//       for (std::size_t k = 0; k < n_contacts; ++k) {
-//         whole_body_state_msgs::msg::ContactState contact = msg_->trajectory[i].contacts[k];
-//         if (contact_traj_id.find(contact.name) == contact_traj_id.end()) {  // a new swing trajectory
-//           contact_traj_id[contact.name] = n_traj;
-//           // Incrementing the counter (id) of swing trajectories
-//           ++n_traj;
-//         }
-//       }
-//     }
+    // Visualizing the different end-effector trajectories
+    contact_traj_id.clear();
+    contact_axes_.clear();
+    std::map<std::size_t, std::size_t> contact_vec_id;
+    float contact_line_width = contact_line_width_property_->getFloat();
+    switch (contact_style) {
+      case BILLBOARDS: {
+        // Getting the end-effector line width
+        contact_billboard_line_.clear();
+        contact_billboard_line_.resize(n_traj);
+      } break;
+      case LINES: {
+        contact_manual_object_.clear();
+        contact_manual_object_.resize(n_traj);
+      } break;
+      case POINTS: {
+        // Getting the end-effector line width
+        contact_points_.clear();
+        contact_points_.resize(n_points);
+      } break;
+    }
 
-//     // Visualizing the different end-effector trajectories
-//     contact_traj_id.clear();
-//     contact_axes_.clear();
-//     std::map<std::size_t, std::size_t> contact_vec_id;
-//     float contact_line_width = contact_line_width_property_->getFloat();
-//     switch (contact_style) {
-//       case BILLBOARDS: {
-//         // Getting the end-effector line width
-//         contact_billboard_line_.clear();
-//         contact_billboard_line_.resize(n_traj);
-//       } break;
-//       case LINES: {
-//         contact_manual_object_.clear();
-//         contact_manual_object_.resize(n_traj);
-//       } break;
-//       case POINTS: {
-//         // Getting the end-effector line width
-//         contact_points_.clear();
-//         contact_points_.resize(n_points);
-//       } break;
-//     }
+    std::size_t traj_id = 0;
+    for (std::size_t i = 0; i < n_points; ++i) {
+      const whole_body_state_msgs::msg::WholeBodyState &state = msg_->trajectory[i];
+      std::size_t n_contacts = state.contacts.size();
+      for (std::size_t k = 0; k < n_contacts; ++k) {
+        const whole_body_state_msgs::msg::ContactState &contact = state.contacts[k];
+        if (contact_traj_id.find(contact.name) == contact_traj_id.end()) {  // a new swing trajectory
+          contact_traj_id[contact.name] = traj_id;
+          contact_vec_id[traj_id] = k;
+          switch (contact_style) {
+            case BILLBOARDS: {
+              contact_billboard_line_[traj_id].reset(new rviz_rendering::BillboardLine(context_->getSceneManager(), scene_node_));
+              contact_billboard_line_[traj_id]->setNumLines(1);
+              contact_billboard_line_[traj_id]->setMaxPointsPerLine(n_points);
+              contact_billboard_line_[traj_id]->setLineWidth(contact_line_width);
+            } break;
+            case LINES: {
+              contact_manual_object_[traj_id].reset(context_->getSceneManager()->createManualObject());
+              contact_manual_object_[traj_id]->setDynamic(true);
+              scene_node_->attachObject(contact_manual_object_[traj_id].get());
+              contact_manual_object_[traj_id]->estimateVertexCount(n_points);
+              contact_manual_object_[traj_id]->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_STRIP);
+            } break;
+            case POINTS: {
+              // do nothing
+            } break;
+          }
+          // Incrementing the counter (id) of swing trajectories
+          ++traj_id;
+        } else {
+          std::size_t swing_idx = contact_traj_id.find(contact.name)->second;
+          if (k != contact_vec_id.find(swing_idx)->second) {  // change the vector index
+            contact_vec_id[swing_idx] = k;
+          }
+        }
+      }
+      // Adding the contact points for the current swing trajectories
+      std::size_t contact_idx = 0;
+      if (contact_style == POINTS) {
+        // Updating the size
+        contact_points_[i].clear();
+        contact_points_[i].resize(n_contacts);
+      }
+      for (std::map<std::string, std::size_t>::iterator traj_it = contact_traj_id.begin();
+           traj_it != contact_traj_id.end(); ++traj_it) {
+        std::size_t traj_id = traj_it->second;
+        std::size_t id = contact_vec_id.find(traj_id)->second;
+        if (id < n_contacts) {
+          const whole_body_state_msgs::msg::ContactState &contact = state.contacts[id];
+          Ogre::Vector3 contact_position;
+          Ogre::Quaternion contact_orientation;
+          contact_position.x = contact.pose.position.x;
+          contact_position.y = contact.pose.position.y;
+          contact_position.z = contact.pose.position.z;
+          contact_orientation.x = contact.pose.orientation.x;
+          contact_orientation.y = contact.pose.orientation.y;
+          contact_orientation.z = contact.pose.orientation.z;
+          contact_orientation.w = contact.pose.orientation.w;
+          // sanity check orientation
+          if (!(std::isfinite(contact_position.x) && std::isfinite(contact_position.y) &&
+                std::isfinite(contact_position.z))) {
+            RCLCPP_WARN(rclcpp::get_logger("whole_body_state_rviz_plugin"), "Contact trajectory is not finite, resetting to zero!");
+            contact_position.x = 0.0;
+            contact_position.y = 0.0;
+            contact_position.z = 0.0;
+          }
+          if (!(std::isfinite(contact_orientation.x) && std::isfinite(contact_orientation.y) &&
+                std::isfinite(contact_orientation.z) && std::isfinite(contact_orientation.w))) {
+            RCLCPP_WARN(rclcpp::get_logger("whole_body_state_rviz_plugin"), "Contact orientation is not finite, resetting to [0 0 0 1]");
+            contact_orientation.x = 0.;
+            contact_orientation.y = 0.;
+            contact_orientation.z = 0.;
+            contact_orientation.w = 1.;
+          }
+          Ogre::Vector3 point_position = transform * contact_position;
+          if (contact_axes_enable_) {
+            pushBackContactAxes(point_position, contact_orientation * orientation);
+          }
+          switch (contact_style) {
+            case BILLBOARDS: {
+              contact_billboard_line_[traj_id]->addPoint(point_position, contact_color);
+            } break;
+            case LINES: {
+              contact_manual_object_[traj_id]->position(point_position.x, point_position.y, point_position.z);
+              contact_manual_object_[traj_id]->colour(contact_color);
+            } break;
+            case POINTS: {
+              contact_points_[i][contact_idx].reset(new PointVisual(context_->getSceneManager(), scene_node_));
+              contact_points_[i][contact_idx]->setColor(contact_color.r, contact_color.g, contact_color.b,
+                                                      contact_color.a);
+              contact_points_[i][contact_idx]->setRadius(contact_line_width);
+              contact_points_[i][contact_idx]->setPoint(point_position);
+              contact_points_[i][contact_idx]->setFramePosition(position);
+              contact_points_[i][contact_idx]->setFrameOrientation(orientation);
+              ++contact_idx;
+            } break;
+          }
+        }
+      }
+    }
 
-//     std::size_t traj_id = 0;
-//     for (std::size_t i = 0; i < n_points; ++i) {
-//       const whole_body_state_msgs::msg::WholeBodyState &state = msg_->trajectory[i];
-//       std::size_t n_contacts = state.contacts.size();
-//       for (std::size_t k = 0; k < n_contacts; ++k) {
-//         const whole_body_state_msgs::msg::ContactState &contact = state.contacts[k];
-//         if (contact_traj_id.find(contact.name) == contact_traj_id.end()) {  // a new swing trajectory
-//           contact_traj_id[contact.name] = traj_id;
-//           contact_vec_id[traj_id] = k;
-//           switch (contact_style) {
-//             case BILLBOARDS: {
-//               contact_billboard_line_[traj_id].reset(new rviz_rendering::BillboardLine(scene_manager_, scene_node_));
-//               contact_billboard_line_[traj_id]->setNumLines(1);
-//               contact_billboard_line_[traj_id]->setMaxPointsPerLine(n_points);
-//               contact_billboard_line_[traj_id]->setLineWidth(contact_line_width);
-//             } break;
-//             case LINES: {
-//               contact_manual_object_[traj_id].reset(scene_manager_->createManualObject());
-//               contact_manual_object_[traj_id]->setDynamic(true);
-//               scene_node_->attachObject(contact_manual_object_[traj_id].get());
-//               contact_manual_object_[traj_id]->estimateVertexCount(n_points);
-//               contact_manual_object_[traj_id]->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_STRIP);
-//             } break;
-//             case POINTS: {
-//               // do nothing
-//             } break;
-//           }
-//           // Incrementing the counter (id) of swing trajectories
-//           ++traj_id;
-//         } else {
-//           std::size_t swing_idx = contact_traj_id.find(contact.name)->second;
-//           if (k != contact_vec_id.find(swing_idx)->second) {  // change the vector index
-//             contact_vec_id[swing_idx] = k;
-//           }
-//         }
-//       }
-//       // Adding the contact points for the current swing trajectories
-//       std::size_t contact_idx = 0;
-//       if (contact_style == POINTS) {
-//         // Updating the size
-//         contact_points_[i].clear();
-//         contact_points_[i].resize(n_contacts);
-//       }
-//       for (std::map<std::string, std::size_t>::iterator traj_it = contact_traj_id.begin();
-//            traj_it != contact_traj_id.end(); ++traj_it) {
-//         std::size_t traj_id = traj_it->second;
-//         std::size_t id = contact_vec_id.find(traj_id)->second;
-//         if (id < n_contacts) {
-//           const whole_body_state_msgs::msg::ContactState &contact = state.contacts[id];
-//           Ogre::Vector3 contact_position;
-//           Ogre::Quaternion contact_orientation;
-//           contact_position.x = contact.pose.position.x;
-//           contact_position.y = contact.pose.position.y;
-//           contact_position.z = contact.pose.position.z;
-//           contact_orientation.x = contact.pose.orientation.x;
-//           contact_orientation.y = contact.pose.orientation.y;
-//           contact_orientation.z = contact.pose.orientation.z;
-//           contact_orientation.w = contact.pose.orientation.w;
-//           // sanity check orientation
-//           if (!(std::isfinite(contact_position.x) && std::isfinite(contact_position.y) &&
-//                 std::isfinite(contact_position.z))) {
-//             std::cerr << "Contact trajectory is not finite, resetting to zero!" << std::endl;
-//             contact_position.x = 0.0;
-//             contact_position.y = 0.0;
-//             contact_position.z = 0.0;
-//           }
-//           if (!(std::isfinite(contact_orientation.x) && std::isfinite(contact_orientation.y) &&
-//                 std::isfinite(contact_orientation.z) && std::isfinite(contact_orientation.w))) {
-//             std::cerr << "Contact orientation is not finite, resetting to [0 0 0 1]" << std::endl;
-//             contact_orientation.x = 0.;
-//             contact_orientation.y = 0.;
-//             contact_orientation.z = 0.;
-//             contact_orientation.w = 1.;
-//           }
-//           Ogre::Vector3 point_position = transform * contact_position;
-//           if (contact_axes_enable_) {
-//             pushBackContactAxes(point_position, contact_orientation * orientation);
-//           }
-//           switch (contact_style) {
-//             case BILLBOARDS: {
-//               contact_billboard_line_[traj_id]->addPoint(point_position, contact_color);
-//             } break;
-//             case LINES: {
-//               contact_manual_object_[traj_id]->position(point_position.x, point_position.y, point_position.z);
-//               contact_manual_object_[traj_id]->colour(contact_color);
-//             } break;
-//             case POINTS: {
-//               contact_points_[i][contact_idx].reset(new PointVisual(context_->getSceneManager(), scene_node_));
-//               contact_points_[i][contact_idx]->setColor(contact_color.r, contact_color.g, contact_color.b,
-//                                                         contact_color.a);
-//               contact_points_[i][contact_idx]->setRadius(contact_line_width);
-//               contact_points_[i][contact_idx]->setPoint(point_position);
-//               contact_points_[i][contact_idx]->setFramePosition(position);
-//               contact_points_[i][contact_idx]->setFrameOrientation(orientation);
-//               ++contact_idx;
-//             } break;
-//           }
-//         }
-//       }
-//     }
+    // Ending the contact manual objects
+    if (contact_style == LINES) {
+      for (std::size_t i = 0; i < traj_id; ++i) {
+        contact_manual_object_[i]->end();
+      }
+    }
+  }
+}
 
-//     // Ending the contact manual objects
-//     if (contact_style == LINES) {
-//       for (std::size_t i = 0; i < traj_id; ++i) {
-//         contact_manual_object_[i]->end();
-//       }
-//     }
-//   }
-// }
+void WholeBodyTrajectoryDisplay::loadRobotModel() {
+  clearStatuses();
+  context_->queueRender();
+  std::string content;
 
-// void WholeBodyTrajectoryDisplay::loadRobotModel() {
-//   clearStatuses();
-//   context_->queueRender();
-//   std::string content;
-//   if (!update_nh_.getParam(robot_description_property_->getStdString(), content)) {
-//     std::string loc;
-//     if (update_nh_.searchParam(robot_description_property_->getStdString(), loc)) {
-//       update_nh_.getParam(loc, content);
-//     } else {
-//       clearRobotModel();
-//       setStatus(StatusProperty::Error, "URDF",
-//                 "Parameter [" + robot_description_property_->getString() +
-//                     "] does not exist, and was not found by searchParam()");
-//       // try again in a second
-//       QTimer::singleShot(1000, this, SLOT(updateRobotDescription()));
-//       return;
-//     }
-//   }
-//   if (content.empty()) {
-//     clearRobotModel();
-//     setStatus(StatusProperty::Error, "URDF", "URDF is empty");
-//     return;
-//   }
-//   if (content == robot_description_) {
-//     return;
-//   }
-//   robot_description_ = content;
-//   urdf::Model descr;
-//   if (!descr.initString(robot_description_)) {
-//     clearRobotModel();
-//     setStatus(StatusProperty::Error, "URDF", "Failed to parse URDF model");
-//     return;
-//   }
-//   try {
-//     pinocchio::urdf::buildModelFromXML(robot_description_, pinocchio::JointModelFreeFlyer(), model_);
-//   } catch (const std::invalid_argument &e) {
-//     std::string error_msg = "Failed to instantiate model: ";
-//     error_msg += e.what();
-//     setStatus(StatusProperty::Error, "Pinocchio-URDFParser", QString::fromStdString(error_msg));
-//     // RCLCPP_ERROR_STREAM(error_msg);  // This message is potentially quite detailed.
-//     return;
-//   }
-//   data_ = pinocchio::Data(model_);
-//   double gravity = model_.gravity.linear().norm();
-//   weight_ = pinocchio::computeTotalMass(model_) * gravity;
-//   robot_->load(descr);
-//   updateTargetEnable();
-//   setStatus(StatusProperty::Ok, "URDF", "URDF parsed OK");
-// }
+  // ROS 2のパラメータ取得方法に更新
+  ros_node_ = rclcpp::Node::make_shared("whole_body_trajectory_display_node");
+  
+  auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(ros_node_, "robot_state_publisher");
+  if (!parameters_client->wait_for_service(std::chrono::seconds(1))) {
+    clearRobotModel();
+    setStatus(StatusProperty::Error, "URDF",
+              "Failed to contact parameter server to get robot description.");
+    QTimer::singleShot(1000, this, SLOT(updateRobotDescription()));
+    return;
+  }
+
+  try {
+    // パラメータ名をプロパティから取得
+    std::string param_name = robot_description_property_->getStdString();
+    auto params = parameters_client->get_parameters({param_name});
+    
+    if (params.empty()) {
+      clearRobotModel();
+      setStatus(StatusProperty::Error, "URDF",
+                "Parameter [" + robot_description_property_->getString() +
+                    "] does not exist in parameter server");
+      QTimer::singleShot(1000, this, SLOT(updateRobotDescription()));
+      return;
+    }
+    
+    content = params[0].value_to_string();
+  } catch (const std::exception& e) {
+    clearRobotModel();
+    setStatus(StatusProperty::Error, "URDF", 
+              QString("Error getting robot description: %1").arg(e.what()));
+    QTimer::singleShot(1000, this, SLOT(updateRobotDescription()));
+    return;
+  }
+
+  if (content.empty()) {
+    clearRobotModel();
+    setStatus(StatusProperty::Error, "URDF", "URDF is empty");
+    return;
+  }
+  
+  if (content == robot_description_) {
+    return;
+  }
+  
+  robot_description_ = content;
+  
+  urdf::Model descr;
+  if (!descr.initString(robot_description_)) {
+    clearRobotModel();
+    setStatus(StatusProperty::Error, "URDF", "Failed to parse URDF model");
+    return;
+  }
+  
+  try {
+    pinocchio::urdf::buildModelFromXML(robot_description_, pinocchio::JointModelFreeFlyer(), model_);
+  } catch (const std::invalid_argument &e) {
+    std::string error_msg = "Failed to instantiate model: ";
+    error_msg += e.what();
+    setStatus(StatusProperty::Error, "Pinocchio-URDFParser", QString::fromStdString(error_msg));
+    RCLCPP_ERROR(rclcpp::get_logger("whole_body_state_rviz_plugin"), "%s", error_msg.c_str());
+    return;
+  }
+  
+  data_ = pinocchio::Data(model_);
+  double gravity = model_.gravity.linear().norm();
+  weight_ = pinocchio::computeTotalMass(model_) * gravity;
+  robot_->load(descr);
+  updateTargetEnable();
+  setStatus(StatusProperty::Ok, "URDF", "URDF parsed OK");
+}
 
 void WholeBodyTrajectoryDisplay::clearRobotModel() {
   robot_->clear();
